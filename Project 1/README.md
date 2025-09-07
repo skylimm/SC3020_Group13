@@ -1,4 +1,4 @@
-how to run
+how to run for task 1
 
 1. cd to the folder
 
