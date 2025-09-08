@@ -1,7 +1,7 @@
 how to run for task 1
 i ran my codes in vscode <br />
-not sure if you guys have the compliers in vscode but i originally have gcc installed in my computer.
-yall can try to run below command lines in the gitbash terminal and works for me
+not sure if you guys have the compliers in vscode but i originally have gcc installed in my computer and works for me.
+yall can try to run below command lines in the gitbash terminal 
 
 1. cd to the folder
 
