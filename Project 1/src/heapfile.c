@@ -74,31 +74,13 @@ void hf_print_stats(HeapFile* hf){
 
 // this part parse th csv rows, encode into records and store into blocks
 int hf_load_csv(HeapFile* hf, const char* csv_path){
-    if (!hf || !csv_path) return -1;
-
     FILE* f = fopen(csv_path, "r");
-    if (!f) {
-        fprintf(stderr, "Cannot open CSV: %s\n", csv_path);
-        return -1;
-    }
+    if (!f) return -1;
 
-    // prepare first empty block and append to file
-    Block blk;
-    memset(&blk, 0, sizeof(Block));
-    block_set_used_count(&blk, 0);
-    uint32_t cur_block_id = fm_alloc_block(&hf->fm, &blk);
-    if (cur_block_id == (uint32_t)-1) {
-        fclose(f);
-        return -1;
-    }
-    hf->n_blocks = cur_block_id + 1;
-
-    // read header line and build column index map
     char line[8192];
-    if (!fgets(line, sizeof(line), f)) {
-        fclose(f);
-        return -1;
-    }
+    // read header
+    if (!fgets(line, sizeof(line), f)) { fclose(f); return -1; }
+
     CsvIdx idx;
     if (parse_header_map(line, &idx) != 0) {
         fclose(f);
@@ -106,101 +88,86 @@ int hf_load_csv(HeapFile* hf, const char* csv_path){
         return -1;
     }
 
+    // // allocate first block on disk
+    // Block zero;
+    // memset(&zero, 0, sizeof(Block));
+    // uint32_t cur_block_id = fm_alloc_block(&hf->fm, &zero);
+    // hf->n_blocks = cur_block_id + 1;
+
+    // // fetch block from buffer pool
+    // Block* cur = bp_fetch(&hf->bp, cur_block_id);
+    // block_set_used_count(cur, 0);
+    // bp_mark_dirty(&hf->bp, cur_block_id);
+
+    // allocate block on disk
+    Block zero;
+    memset(&zero, 0, sizeof(Block));
+    uint32_t cur_block_id = fm_alloc_block(&hf->fm, &zero);
+    hf->n_blocks = cur_block_id + 1;
+
+    // manually put it into the buffer pool
+    Block* cur = bp_fetch(&hf->bp, cur_block_id);
+    memset(cur, 0, sizeof(Block));
+    block_set_used_count(cur, 0);
+    bp_mark_dirty(&hf->bp, cur_block_id);
+
     const int cap = block_capacity_records(hf->schema.record_size);
-    if (cap <= 0) {
-        fclose(f);
-        fprintf(stderr, "Record size too large for block.\n");
-        return -1;
-    }
-
     uint8_t recbuf[512];
-    int slot = block_used_count(&blk); // should start at 0
-    uint64_t accepted = 0, skipped = 0;
+    int slot = 0;
+    Row r;
 
-    // read each data row
     while (fgets(line, sizeof(line), f)) {
-        Row r;
-        if (parse_row_by_index(line, &idx, &r) != 0) {
-            skipped++;
-            continue; // ignore malformed lines
-        }
-
+        if (parse_row_by_index(line, &idx, &r) != 0) continue;
         encode_row(&hf->schema, &r, recbuf);
 
-        // if current block full, write it and start a new one
         if (slot >= cap) {
-            if (fm_write_block(&hf->fm, cur_block_id, &blk) != 0) {
-                fclose(f);
-                return -1;
-            }
-            memset(&blk, 0, sizeof(Block));
-            block_set_used_count(&blk, 0);
-            cur_block_id = fm_alloc_block(&hf->fm, &blk);
-            if (cur_block_id == (uint32_t)-1) {
-                fclose(f);
-                return -1;
-            }
+            // allocate a new block when current is full
+            Block z; memset(&z, 0, sizeof(Block));
+            cur_block_id = fm_alloc_block(&hf->fm, &z);
             hf->n_blocks = cur_block_id + 1;
+
+            cur = bp_fetch(&hf->bp, cur_block_id);
+            block_set_used_count(cur, 0);
+            bp_mark_dirty(&hf->bp, cur_block_id);
             slot = 0;
         }
 
-        // write record bytes into the in-memory block
-        if (block_write_record(&blk, hf->schema.record_size, slot, recbuf) != 0) {
-            fclose(f);
-            fprintf(stderr, "Failed to write record into block (slot=%d)\n", slot);
-            return -1;
-        }
+        block_write_record(cur, hf->schema.record_size, slot, recbuf);
         slot++;
-        block_set_used_count(&blk, (uint16_t)slot);
-        accepted++;
+        block_set_used_count(cur, (uint16_t)slot);
+        bp_mark_dirty(&hf->bp, cur_block_id);
     }
 
-    // flush the last (possibly partially filled) block
-    if (fm_write_block(&hf->fm, cur_block_id, &blk) != 0) {
-        fclose(f);
-        return -1;
-    }
-
+    // flush dirty blocks to disk
+    bp_flush_all(&hf->bp);
     fclose(f);
-
-    // Optional: brief load summary to stderr (kept quiet on stdout)
-    fprintf(stderr, "[load] accepted=%llu skipped=%llu blocks=%u rpb=%d rec_size=%u\n",
-            (unsigned long long)accepted,
-            (unsigned long long)skipped,
-            hf->n_blocks,
-            cap,
-            hf->schema.record_size);
-
     return 0;
 }
 
-// scanning and printing first N records
 int hf_scan_print_firstN(HeapFile* hf, int limit){
-    if (!hf) return -1;
-    if (limit < 0) limit = 0;  // 0 = print all
-
     uint8_t recbuf[512];
     Row r;
     int printed = 0;
 
-    Block blk;
     for (uint32_t b = 0; b < hf->n_blocks; b++) {
-        if (fm_read_block(&hf->fm, b, &blk) != 0)
-            return -1;
-        int used = block_used_count(&blk);
+        // fetch block via buffer pool
+        Block* cur = bp_fetch(&hf->bp, b);
+        if (!cur) return -1;
+
+        int used = block_used_count(cur);
         int cap  = block_capacity_records(hf->schema.record_size);
-        if (used > cap) used = cap; // safety
+        if (used > cap) used = cap;
 
         for (int s = 0; s < used; s++) {
-            if (block_read_record(&blk, hf->schema.record_size, s, recbuf) != 0)
-                return -1;
+            block_read_record(cur, hf->schema.record_size, s, recbuf);
             decode_row(&hf->schema, recbuf, &r);
+
             printf("%d,%s,%d,%d,%.3f,%d\n",
                    r.game_id, r.game_date,
                    r.home_team_id, r.visitor_team_id,
                    r.ft_pct_home, r.home_team_wins);
-            printed++;
-            if (limit > 0 && printed >= limit) return 0;
+
+            if (limit > 0 && ++printed >= limit) return 0;
         }
     }
     return 0;
