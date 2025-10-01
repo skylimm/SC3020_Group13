@@ -52,6 +52,6 @@ typedef struct  {
     uint8_t bytes[NODE_SIZE - NODE_HDR_SIZE];
 } Node;
 
-Node* node_init(Node* n, uint8_t node_type, uint32_t node_id);
+int node_init(Node* n, uint8_t node_type, uint32_t node_id);
 
 #endif

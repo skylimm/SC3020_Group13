@@ -1,13 +1,15 @@
 #include <bptree.h>
 #include <string.h>
 
-Node *node_init(Node *n, uint8_t level, uint32_t node_id )
+int node_init(Node *n, uint8_t level, uint32_t node_id )
 {
     n->key_count = 0;
     n->level = level; 
     n->node_id = node_id;
     // check??????
     n->lower_bound = -1.0f;
+    
+    return 0;
 }
 
 static inline node_get_type(Node* n) {
