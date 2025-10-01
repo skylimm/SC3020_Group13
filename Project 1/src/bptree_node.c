@@ -59,11 +59,12 @@ int node_write_node_key(Node *n, float key, uint32_t node_id)
     if ((n->key_count) == 0){
         memcpy(&n->bytes, &node_id-1, NODE_POINTER_SIZE);
     }
-
+    
     size_t off = NODE_POINTER_SIZE + (node_id + (size_t)key) * n->key_count;
 
     memcpy(&n->bytes[off], &key, KEY_SIZE);
     memcpy(&n->bytes[off + KEY_SIZE], &node_id, NODE_POINTER_SIZE);
+    n->key_count += 1;
     n->key_count += 1;
     return 0;
 }

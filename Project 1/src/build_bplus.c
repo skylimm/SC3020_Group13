@@ -3,8 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include "bptree.h"
-#include "heapfile.h"
 #include "build_bplus.h"
+#include "file_manager_btree.h"
 
 typedef struct {
     float    key;
@@ -94,25 +94,133 @@ int scan_db(HeapFile *hf)
         }
     }
 
+
     if (count > 1)
         qsort(entries, count, sizeof(KeyPointer), compare_key_pointer);
-    int node_count = 1;
-    Node *node = malloc(sizeof(Node));
-    Node *curr = node;
-    node_init(node, 1, node_count++);
-    for (size_t i = 0; i < count; i++){
-        if (node_write_record_key(curr, entries[i].key, entries[i].block_id, entries[i].slot_id) < 0){
-            Node *new_node = malloc(sizeof(Node));
-            node_init(new_node, 1, node_count++);
-            link_leaf_node(curr, node_count);
-            curr = new_node;
-            if (node_write_record_key(curr, entries[i].key, entries[i].block_id, entries[i].slot_id) < 0){
-                printf("Error writing record key to new node\n");
-            }
+
+    // open B+tree file (one page per node)
+    BtreeFileManager fm;
+    if (btfm_open(&fm, "btree.db", NODE_SIZE) != 0) {
+        fprintf(stderr, "Could not open btree.db\n");
+        free(entries);
+        return -1;
+    }
+
+    // nothing to index?
+    if (count == 0) {
+        btfm_close(&fm);
+        free(entries);
+        return 0;
+    }
+
+    // allocate first leaf id
+    uint32_t node_id;
+    if (btfm_alloc_node(&fm, &node_id) != 0) {
+        fprintf(stderr, "alloc node failed\n");
+        btfm_close(&fm);
+        free(entries);
+        return -1;
+    }
+    // build leaves and persist as they fill
+    int leaf_count = 0;
+    Node *curr = malloc(sizeof(Node));
+    if (!curr) {
+        btfm_close(&fm);
+        free(entries);
+        return -1;
+    }
+    node_init(curr, 1, node_id);
+    leaf_count = 1;
+
+    float array[1000];
+
+
+    for (size_t i = 0; i < count; i++) {
+        int wr = node_write_record_key(curr,
+                                    entries[i].key,
+                                    entries[i].block_id,
+                                    entries[i].slot_id);
+        if (wr >= 0) continue;
+        array[leaf_count - 1] = curr->lower_bound;
+        uint32_t new_id;
+        if (btfm_alloc_node(&fm, &new_id) != 0) {
+            fprintf(stderr, "alloc node failed\n");
+            free(curr);
+            btfm_close(&fm);
+            free(entries);
+            return -1;
+        }
+        Node *next = malloc(sizeof(Node));
+        if (!next) {
+            free(curr);
+            btfm_close(&fm);
+            free(entries);
+            return -1;
+        }
+        node_init(next, 1, new_id);
+        leaf_count++;
+
+        link_leaf_node(curr, new_id);
+
+        if (btfm_write_node(&fm, curr) != 0) {
+            fprintf(stderr, "Error writing node %u to disk\n", curr->node_id);
+            free(next);
+            free(curr);
+            btfm_close(&fm);
+            free(entries);
+            return -1;
+        }
+
+        // Move to the new leaf and retry the same entry
+        // free(curr);
+        curr = next;
+
+        if (node_write_record_key(curr,
+                                entries[i].key,
+                                entries[i].block_id,
+                                entries[i].slot_id) < 0) {
+            fprintf(stderr, "Unexpected: write failed on fresh leaf\n");
+            free(curr);
+            btfm_close(&fm);
+            free(entries);
+            return -1;
         }
     }
-    printf("Total leaf nodes: %d\n", node_count - 1);
-    printf("Total entries: %zu\n", count);
+    array[leaf_count - 1] = curr->lower_bound;
+    // Persist the final (partially filled) leaf
+    if (btfm_write_node(&fm, curr) != 0) {
+        fprintf(stderr, "Error writing final node %u to disk\n", curr->node_id);
+        free(curr);
+        btfm_close(&fm);
+        free(entries);
+        return -1;
+    }
+
+    printf("Parameters n : %d\n", MAX_LEAF_KEYS + 1);
+    leaf_count++;
+    printf("Total nodes (incl. root): %d\n", leaf_count);
+    printf("Number of levels: 2\n");
+    Node *root = malloc(sizeof(Node));
+    node_init(root, 2, leaf_count); // temp id=0
+
+    set_int_node_lb(root, array[0]);
+    for (int i = 1; i < leaf_count - 1; i++) {
+        node_write_node_key(root, array[i], i);
+        //also print content of root node nicely. prev pointer and all keys with their node ids
+        printf("Root node key %d: %.2f\n", i, array[i]);
+    }
+    if (btfm_write_node(&fm, root) != 0) {
+        fprintf(stderr, "Error writing root node to disk\n");
+        free(root);
+        free(curr);
+        btfm_close(&fm);
+        free(entries);
+        return -1;
+    }
+    free(root);
+    
+    free(curr);
+    btfm_close(&fm);
     free(entries);
     return 0;
 }
