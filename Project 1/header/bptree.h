@@ -55,6 +55,7 @@ typedef struct  {
 
 int node_init(Node* n, uint8_t node_type, uint32_t node_id);
 int node_write_record_key(Node *n, float key, uint32_t block_id, int slot);
+int set_int_node_lb(Node *n, float lower_bound);
 int link_leaf_node(Node *left, uint32_t next_node_id);
 int node_write_node_key(Node *n, float key, uint32_t node_id);
 int encode_node(const Node *n, uint8_t *dst);
