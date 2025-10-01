@@ -32,27 +32,26 @@ int node_write_record_key(Node *n, float key, uint32_t block_id, int slot)
         //needs for the pointer to next node
 
     size_t off = NODE_HDR_SIZE + ((size_t)slot + block_id + (size_t)key) * node_get_key_count(n);
-    uint8_t ptr[POINTER_SIZE];
+    uint8_t ptr[RECORD_POINTER_SIZE];
 
     memcpy(ptr, &block_id, 4);
     memcpy(ptr + 4, &slot, 4);
 
     memcpy(&n->bytes[off], &key, KEY_SIZE);
-    memcpy(&n->bytes[off + KEY_SIZE], ptr, POINTER_SIZE);
+    memcpy(&n->bytes[off + KEY_SIZE], ptr, RECORD_POINTER_SIZE);
     return 0;
 }
 
-int node_write_node_key(Node *n, float key, uint32_t node_id, int slot)
+int node_write_node_key(Node *n, float key, uint32_t node_id)
 {
     int key_count = node_get_key_count(n);
-    if ((key_count) >= MAX_LEAF_KEYS)
+    if ((key_count) >= MAX_INTERNAL_KEYS)
         return -1;
     // needs the initial pointer
 
-    size_t off = NODE_HDR_SIZE + POINTER_SIZE + ((size_t)slot + node_id + (size_t)key) * key_count;
-    uint8_t ptr[POINTER_SIZE];
-    memcpy(ptr, &node_id, 4);
-    memcpy(ptr + 4, &slot, 4);
+    size_t off = NODE_HDR_SIZE + NODE_POINTER_SIZE + (node_id + (size_t)key) * key_count;
+
     memcpy(&n->bytes[off], &key, KEY_SIZE);
-    memcpy(&n->bytes[off + KEY_SIZE], ptr, POINTER_SIZE);
+    memcpy(&n->bytes[off + KEY_SIZE], &node_id, NODE_POINTER_SIZE);
+    return 0;
 }
