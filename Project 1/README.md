@@ -1,4 +1,4 @@
-how to run for task 1
+how to run for task 1 & 2
 i ran my codes in vscode <br />
 not sure if you guys have the compliers in vscode but i originally have gcc installed in my computer and works for me.
 yall can try to run below command lines in the gitbash terminal 
@@ -10,3 +10,6 @@ yall can try to run below command lines in the gitbash terminal
 `./project_c load games.txt data.db --buf 64`<br />
 `./project_c stats data.db --buf 64`<br />
 `./project_c scan data.db --buf 64 --limit 10`
+
+`./project_c build_bplus  data.db` : this is for task 2. sometimes might give an error but just rerun.
+

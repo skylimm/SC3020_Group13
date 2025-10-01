@@ -1,6 +1,7 @@
 #include "cli.h"
 #include "heapfile.h"
 #include "schema.h"
+#include "build_bplus.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -72,6 +73,22 @@ int run_cli(int argc, char **argv)
             return 2;
         }
         hf_scan_print_firstN(&hf, limit);
+        hf_close(&hf);
+        return 0;
+    }
+    else if (strcmp(argv[1], "build_bplus") == 0 && argc >= 3)
+    {
+        const char *db = argv[2];
+        HeapFile hf;
+        if (hf_open(&hf, db, buf) != 0)
+        {
+            fprintf(stderr, "open failed\n");
+            return 2;
+        }
+        if (scan_db(&hf) != 0){
+            fprintf(stderr, "bplus build failed\n");
+            return 3;
+        }
         hf_close(&hf);
         return 0;
     }
