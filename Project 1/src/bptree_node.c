@@ -44,38 +44,35 @@ int node_write_record_key(Node *n, float key, uint32_t block_id, int slot)
     
         //needs for the pointer to next node
 
-    size_t off = NODE_HDR_SIZE + ((size_t)slot + block_id + (size_t)key) * node_get_key_count(n);
+    size_t off = ((size_t)slot + block_id + (size_t)key) * node_get_key_count(n);
     uint8_t ptr[RECORD_POINTER_SIZE];
 
     memcpy(ptr, &block_id, 4);
     memcpy(ptr + 4, &slot, 4);
 
-    memcpy(&n->bytes[off], &key, KEY_SIZE);
-    memcpy(&n->bytes[off + KEY_SIZE], ptr, RECORD_POINTER_SIZE);
+    memcpy(&n->bytes[off], ptr, RECORD_POINTER_SIZE);
+    memcpy(&n->bytes[off + RECORD_POINTER_SIZE], &key, KEY_SIZE);
 
 
     return 0;
 }
 
 // pointer input
-int link_leaf_node(Node *left, int node_id)
-{
-    if (!left || !right)
-        return -1;
-    // link the next pointer of left to right
-    uint32_t right_id = 0; // TODO: need to pass the block id of the right node
-    memcpy(&left->bytes[NODE_HDR_SIZE - NODE_POINTER_SIZE], &right_id, NODE_POINTER_SIZE);
+int link_leaf_node(Node *left, uint32_t next_node_id)
+{ 
+    size_t off = NODE_SIZE - NODE_POINTER_SIZE;
+    memcpy(&left->bytes[off], &next_node_id, NODE_POINTER_SIZE);
     return 0;
 }
+
 
 int node_write_node_key(Node *n, float key, uint32_t node_id)
 {
     int key_count = node_get_key_count(n);
     if ((key_count) >= MAX_INTERNAL_KEYS)
         return -1;
-    // needs the initial pointer
 
-    size_t off = NODE_HDR_SIZE + NODE_POINTER_SIZE + (node_id + (size_t)key) * key_count;
+    size_t off = NODE_POINTER_SIZE + (node_id + (size_t)key) * key_count;
 
     memcpy(&n->bytes[off], &key, KEY_SIZE);
     memcpy(&n->bytes[off + KEY_SIZE], &node_id, NODE_POINTER_SIZE);
