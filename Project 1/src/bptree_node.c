@@ -1,4 +1,4 @@
-#include <bptree.h>
+#include "bptree.h"
 #include <string.h>
 
 int node_init(Node *n, uint8_t level, uint32_t node_id )
@@ -12,34 +12,10 @@ int node_init(Node *n, uint8_t level, uint32_t node_id )
     return 0;
 }
 
-static inline node_get_type(Node* n) {
-    return n->bytes[0];
-}
-
-static inline node_get_key_count(Node* n) {
-    return (uint16_t)(n->bytes[1] | (n->bytes[2] << 8));
-}
-static inline node_get_lower_bound(Node* n) {
-    return (float)(n->bytes[11] | (n->bytes[12] << 8) | (n->bytes[13] << 16) | (n->bytes[14] << 24));
-}
-
-// input functions for header
-// 
-
-// static inline node_parse_header(const Node* n, uint8_t* node_type, uint16_t* key_count, uint32_t* parent_id, float* lower_bound) {
-//     if (node_type)  *node_type  = n->bytes[0];
-//     if (key_count)  *key_count  = (uint16_t)(n->bytes[1] | (n->bytes[2] << 8));
-//     // is wrong
-//     if (parent_id)  *parent_id  = (uint32_t)(n->bytes[3] | (n->bytes[4] << 8) | (n->bytes[5] << 16) | (n->bytes[6] << 24));
-//     if (lower_bound)
-//         *lower_bound = (float)(n->bytes[11] | (n->bytes[12] << 8) | (n->bytes[13] << 16) | (n->bytes[14] << 24));
-//     ; // TODO
-//     return 0;
-// }
 
 int node_write_record_key(Node *n, float key, uint32_t block_id, int slot)
 {
-    if (node_get_key_count(n) >= MAX_LEAF_KEYS)
+    if (n->key_count >= MAX_LEAF_KEYS)
         return -1;
     
         //needs for the pointer to next node
@@ -53,6 +29,7 @@ int node_write_record_key(Node *n, float key, uint32_t block_id, int slot)
     memcpy(&n->bytes[off], ptr, RECORD_POINTER_SIZE);
     memcpy(&n->bytes[off + RECORD_POINTER_SIZE], &key, KEY_SIZE);
 
+    n->key_count += 1;
 
     return 0;
 }
@@ -78,3 +55,48 @@ int node_write_node_key(Node *n, float key, uint32_t node_id)
     memcpy(&n->bytes[off + KEY_SIZE], &node_id, NODE_POINTER_SIZE);
     return 0;
 }
+
+// encode and decode functions for node
+int encode_node(const Node *n, uint8_t *dst)
+{
+    if (!n || !dst)
+        return -1;
+
+    uint8_t *p = dst;
+    *p++ = n->level;
+
+    memcpy(p, &n->node_id, sizeof(n->node_id));
+    p += sizeof(n->node_id);
+
+    memcpy(p, &n->key_count, sizeof(n->key_count));
+    p += sizeof(n->key_count);
+
+    memcpy(p, &n->lower_bound, sizeof(n->lower_bound));
+    p += sizeof(n->lower_bound);
+
+    memcpy(p, n->bytes, NODE_SIZE - NODE_HDR_SIZE);
+    return 0;
+}
+
+int decode_node(const uint8_t *src, Node *n)
+{
+    if (!src || !n)
+        return -1;
+
+    const uint8_t *p = src;
+
+    n->level = *p++;
+
+    memcpy(&n->node_id, p, sizeof(n->node_id));
+    p += sizeof(n->node_id);
+
+    memcpy(&n->key_count, p, sizeof(n->key_count));
+    p += sizeof(n->key_count);
+
+    memcpy(&n->lower_bound, p, sizeof(n->lower_bound));
+    p += sizeof(n->lower_bound);
+
+    memcpy(n->bytes, p, NODE_SIZE - NODE_HDR_SIZE);
+    return 0;
+}
+
