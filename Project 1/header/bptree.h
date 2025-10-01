@@ -28,6 +28,8 @@ header for internal nodes -> 15B
 - uint16_t key_count -> 2B
 - uint32_t parent address -> 8B (pointer : block id and the "slot" in the block aka the index of the key)
 - float lower_bound key -> 4B (minimum key in the node)
+- uint8 level
+- 
 
 header for root node
 - include the previous pointer??
@@ -43,7 +45,13 @@ uint8_t node_type; // 0 = internal, 1 = leaf
 */
 
 typedef struct  {
-    uint8_t bytes[NODE_SIZE];
+    uint8_t key_count;
+    uint8_t level;
+    float lower_bound;
+    uint32_t node_id;
+    uint8_t bytes[NODE_SIZE - NODE_HDR_SIZE];
 } Node;
+
+Node* node_init(Node* n, uint8_t node_type, uint32_t node_id);
 
 #endif

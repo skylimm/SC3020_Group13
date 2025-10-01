@@ -1,6 +1,15 @@
 #include <bptree.h>
 #include <string.h>
 
+Node *node_init(Node *n, uint8_t level, uint32_t node_id )
+{
+    n->key_count = 0;
+    n->level = level; 
+    n->node_id = node_id;
+    // check??????
+    n->lower_bound = -1.0f;
+}
+
 static inline node_get_type(Node* n) {
     return n->bytes[0];
 }
@@ -12,6 +21,8 @@ static inline node_get_lower_bound(Node* n) {
     return (float)(n->bytes[11] | (n->bytes[12] << 8) | (n->bytes[13] << 16) | (n->bytes[14] << 24));
 }
 
+// input functions for header
+// 
 
 // static inline node_parse_header(const Node* n, uint8_t* node_type, uint16_t* key_count, uint32_t* parent_id, float* lower_bound) {
 //     if (node_type)  *node_type  = n->bytes[0];
@@ -39,6 +50,19 @@ int node_write_record_key(Node *n, float key, uint32_t block_id, int slot)
 
     memcpy(&n->bytes[off], &key, KEY_SIZE);
     memcpy(&n->bytes[off + KEY_SIZE], ptr, RECORD_POINTER_SIZE);
+
+
+    return 0;
+}
+
+// pointer input
+int link_leaf_node(Node *left, int node_id)
+{
+    if (!left || !right)
+        return -1;
+    // link the next pointer of left to right
+    uint32_t right_id = 0; // TODO: need to pass the block id of the right node
+    memcpy(&left->bytes[NODE_HDR_SIZE - NODE_POINTER_SIZE], &right_id, NODE_POINTER_SIZE);
     return 0;
 }
 
