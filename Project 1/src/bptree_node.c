@@ -18,8 +18,10 @@ int node_write_record_key(Node *n, float key, uint32_t block_id, int slot)
     if (n->key_count >= MAX_LEAF_KEYS)
         return -1;
     
-        //needs for the pointer to next node
-
+    if (n->key_count == 0){
+        n->lower_bound = key;
+    }
+    
     size_t off = ((size_t)slot + block_id + (size_t)key) * n->key_count;
     uint8_t ptr[RECORD_POINTER_SIZE];
 
@@ -47,6 +49,10 @@ int node_write_node_key(Node *n, float key, uint32_t node_id)
 {
     if ((n->key_count) >= MAX_INTERNAL_KEYS)
         return -1;
+
+    if ((n->key_count) == 1){
+        memcpy(&n->bytes, &node_id-1, NODE_POINTER_SIZE);
+    }
 
     size_t off = NODE_POINTER_SIZE + (node_id + (size_t)key) * n->key_count;
 
