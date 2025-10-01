@@ -44,6 +44,10 @@ int link_leaf_node(Node *left, uint32_t next_node_id)
     return 0;
 }
 
+int set_int_node_lb(Node *n, float lower_bound)
+{
+    n->lower_bound = lower_bound;
+}
 
 int node_write_node_key(Node *n, float key, uint32_t node_id)
 {
