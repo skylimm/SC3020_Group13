@@ -99,7 +99,6 @@ int scan_db(HeapFile *hf)
         qsort(entries, count, sizeof(KeyPointer), compare_key_pointer);
 
     // open B+tree file (one page per node)
-    // minhwan: Delete old file first to ensure we start fresh
     remove("btree.db");
     
     BtreeFileManager fm;
@@ -136,8 +135,8 @@ int scan_db(HeapFile *hf)
     leaf_count = 1;
 
     float array[1000];
-    uint32_t leaf_node_ids[1000]; // minhwan: Store actual allocated node IDs
-    leaf_node_ids[0] = node_id; // minhwan: Store first leaf node ID
+    uint32_t leaf_node_ids[1000];
+    leaf_node_ids[0] = node_id;
 
 
     for (size_t i = 0; i < count; i++) {
@@ -147,10 +146,8 @@ int scan_db(HeapFile *hf)
                                     entries[i].slot_id);
         if (wr >= 0) continue;
         
-        // minhwan: Current node is full, store its lower bound for root node
         array[leaf_count - 1] = curr->lower_bound;
         
-        // minhwan: Allocate next node
         uint32_t new_id;
         if (btfm_alloc_node(&fm, &new_id) != 0) {
             fprintf(stderr, "alloc node failed\n");
@@ -160,10 +157,8 @@ int scan_db(HeapFile *hf)
             return -1;
         }
         
-        // minhwan: Link current node to next node BEFORE writing
         link_leaf_node(curr, new_id);
 
-        // minhwan: Write current node to disk with proper link
         if (btfm_write_node(&fm, curr) != 0) {
             fprintf(stderr, "Error writing node %u to disk\n", curr->node_id);
             free(curr);
@@ -172,7 +167,6 @@ int scan_db(HeapFile *hf)
             return -1;
         }
 
-        // minhwan: Prepare next node
         Node *next = malloc(sizeof(Node));
         if (!next) {
             free(curr);
@@ -182,7 +176,7 @@ int scan_db(HeapFile *hf)
         }
         node_init(next, 1, new_id);
         leaf_count++;
-        leaf_node_ids[leaf_count - 1] = new_id; // minhwan: Store actual leaf node ID
+        leaf_node_ids[leaf_count - 1] = new_id;
 
         // Move to the new leaf and retry the same entry
         free(curr);
@@ -201,8 +195,7 @@ int scan_db(HeapFile *hf)
     }
     array[leaf_count - 1] = curr->lower_bound;
 
-    // minhwan: Fix - Terminate the final leaf chain properly
-    link_leaf_node(curr, UINT32_MAX);  // Use UINT32_MAX as end marker
+    link_leaf_node(curr, UINT32_MAX);
     
     // Persist the final (partially filled) leaf
     if (btfm_write_node(&fm, curr) != 0) {
@@ -215,10 +208,9 @@ int scan_db(HeapFile *hf)
 
     printf("Parameters n : %d\n", MAX_LEAF_KEYS + 1);
     printf("Total leaf nodes: %d\n", leaf_count);
-    printf("Total nodes (incl. root): %d\n", leaf_count + 1); // minhwan: Don't increment leaf_count, just add 1 for display
+    printf("Total nodes (incl. root): %d\n", leaf_count + 1);
     printf("Number of levels: 2\n");
     
-    // minhwan: Properly allocate root node ID instead of using leaf_count
     uint32_t root_id;
     if (btfm_alloc_node(&fm, &root_id) != 0) {
         fprintf(stderr, "Failed to allocate root node\n");
@@ -228,11 +220,11 @@ int scan_db(HeapFile *hf)
     }
     
     Node *root = malloc(sizeof(Node));
-    node_init(root, 2, root_id); // minhwan: Use proper allocated root_id
+    node_init(root, 2, root_id);
 
     set_int_node_lb(root, array[0]);
-    for (int i = 0; i < leaf_count; i++) { // minhwan: Include ALL leaf nodes (0 to leaf_count-1)
-        node_write_node_key(root, array[i], leaf_node_ids[i]); // minhwan: Use actual stored node ID
+    for (int i = 0; i < leaf_count; i++) {
+        node_write_node_key(root, array[i], leaf_node_ids[i]);
         printf("Root node key %d: %.2f\n", i, array[i]);
     }
     if (btfm_write_node(&fm, root) != 0) {

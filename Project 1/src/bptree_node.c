@@ -23,7 +23,7 @@ int node_write_record_key(Node *n, float key, uint32_t block_id, int slot)
         n->lower_bound = key;
     }
     
-    size_t off = n->key_count * (RECORD_POINTER_SIZE + KEY_SIZE); // minhwan: Fix offset calculation for leaf nodes
+    size_t off = n->key_count * (RECORD_POINTER_SIZE + KEY_SIZE);
     uint8_t ptr[RECORD_POINTER_SIZE];
 
     memcpy(ptr, &block_id, 4);
@@ -40,7 +40,7 @@ int node_write_record_key(Node *n, float key, uint32_t block_id, int slot)
 // link the leaf nodes together
 int link_leaf_node(Node *node, uint32_t next_node_id)
 {
-    size_t off = (NODE_SIZE - NODE_HDR_SIZE) - 4;  // minhwan: Correct offset within bytes array
+    size_t off = (NODE_SIZE - NODE_HDR_SIZE) - 4;
     memcpy(&node->bytes[off], &next_node_id, 4);
 
     return 0;
@@ -59,14 +59,14 @@ int node_write_node_key(Node *n, float key, uint32_t node_id)
         return -1;
 
     if ((n->key_count) == 0){
-        memcpy(&n->bytes, &node_id, NODE_POINTER_SIZE); // minhwan: Use node_id, not node_id-1
+        memcpy(&n->bytes, &node_id, NODE_POINTER_SIZE);
     }
     
-    size_t off = NODE_POINTER_SIZE + n->key_count * (KEY_SIZE + NODE_POINTER_SIZE); // minhwan: Fix offset calculation
+    size_t off = NODE_POINTER_SIZE + n->key_count * (KEY_SIZE + NODE_POINTER_SIZE);
 
     memcpy(&n->bytes[off], &key, KEY_SIZE);
     memcpy(&n->bytes[off + KEY_SIZE], &node_id, NODE_POINTER_SIZE);
-    n->key_count += 1; // minhwan: Remove double increment, only increment once
+    n->key_count += 1;
     return 0;
 }
 

@@ -38,7 +38,6 @@ int btfm_open(BtreeFileManager *fm, const char *path, size_t page_size) {
     if (!fm || !path) return -1;
     if (page_size == 0 || page_size != (size_t)NODE_SIZE) return -2;
 
-    // minhwan: Try to open existing file for reading first (preserves existing data)
     FILE *fp = fopen(path, "rb+");
     if (!fp) {
         // If file doesn't exist, create it in write mode
