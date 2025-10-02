@@ -25,4 +25,7 @@ int  hf_records_per_block(const HeapFile* hf);
 void hf_print_stats(HeapFile* hf);
 int  hf_scan_print_firstN(HeapFile* hf, int limit);
 
+// minhwan: Record deletion functionality
+int hf_delete_record(HeapFile* hf, uint32_t block_id, uint16_t slot_id);
+
 #endif

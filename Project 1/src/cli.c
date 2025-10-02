@@ -105,7 +105,7 @@ int run_cli(int argc, char **argv)
         printf("Deleting records with FT_PCT_home > %.6f\n", min_key);
         printf("========================================\n\n");
         
-        extern int bptree_range_search(const char *btree_filename, float min_key, void *result);  // minhwan: Declare external function
+        extern int bptree_range_delete(const char *db_filename, const char *btree_filename, float min_key, void *result);  // minhwan: Declare external function
         
         // Use a simple structure to capture results without exposing internal details
         struct {
@@ -118,9 +118,9 @@ int run_cli(int argc, char **argv)
             double search_time_ms;
         } search_result = {0};
         
-        // Perform B+ tree range search to find records to delete
-        if (bptree_range_search("btree.db", min_key, &search_result) != 0) {
-            fprintf(stderr, "B+ tree range search failed\n");
+        // Perform actual B+ tree range deletion (search + delete + rebuild)
+        if (bptree_range_delete(db, "btree.db", min_key, &search_result) != 0) {
+            fprintf(stderr, "B+ tree range deletion failed\n");
             return 3;
         }
         

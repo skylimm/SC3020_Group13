@@ -565,3 +565,75 @@ int test_bptree_search()
         return -1;
     }
 }
+
+// minhwan: Complete range deletion function that actually deletes records and rebuilds B+ tree
+int bptree_range_delete(const char *db_filename, const char *btree_filename, float min_key, SearchResult *result)
+{
+    printf("\n=== Starting Record Deletion Process ===\n");
+    
+    // Step 1: Find all records to delete using B+ tree search
+    if (bptree_range_search(btree_filename, min_key, result) != 0) {
+        fprintf(stderr, "Failed to find records for deletion\n");
+        return -1;
+    }
+    
+    if (result->count == 0) {
+        printf("No records found for deletion.\n");
+        return 0;
+    }
+    
+    printf("Found %zu records to delete. Proceeding with deletion...\n", result->count);
+    
+    // Step 2: Open the heap file and delete records
+    HeapFile hf;
+    if (hf_open(&hf, db_filename, 64) != 0) {
+        fprintf(stderr, "Failed to open database file: %s\n", db_filename);
+        return -1;
+    }
+    
+    // Sort records by block_id and slot_id in descending order
+    // This ensures we delete from end to beginning to avoid slot shifting issues
+    for (size_t i = 0; i < result->count - 1; i++) {
+        for (size_t j = i + 1; j < result->count; j++) {
+            RecordLocation *a = &result->records[i];
+            RecordLocation *b = &result->records[j];
+            
+            // Sort by block_id descending, then by slot_id descending
+            if (a->block_id < b->block_id || 
+                (a->block_id == b->block_id && a->slot_id < b->slot_id)) {
+                RecordLocation temp = *a;
+                *a = *b;
+                *b = temp;
+            }
+        }
+    }
+    
+    // Delete records from heap file
+    size_t deleted_count = 0;
+    for (size_t i = 0; i < result->count; i++) {
+        if (hf_delete_record(&hf, result->records[i].block_id, result->records[i].slot_id) == 0) {
+            deleted_count++;
+        }
+    }
+    
+    printf("Successfully deleted %zu records from database.\n", deleted_count);
+    
+    // Step 3: Rebuild the B+ tree with remaining records
+    printf("Rebuilding B+ tree index...\n");
+    extern int scan_db(HeapFile *hf);  // minhwan: Declare external function from build_bplus.c
+    
+    if (scan_db(&hf) != 0) {
+        fprintf(stderr, "Failed to rebuild B+ tree index\n");
+        hf_close(&hf);
+        return -1;
+    }
+    
+    printf("B+ tree index rebuilt successfully.\n");
+    
+    // Clean up
+    hf_close(&hf);
+    
+    printf("=== Record Deletion Process Complete ===\n\n");
+    
+    return 0;
+}

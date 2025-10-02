@@ -172,3 +172,32 @@ int hf_scan_print_firstN(HeapFile* hf, int limit){
     }
     return 0;
 }
+
+// minhwan: Delete a specific record from the heap file
+int hf_delete_record(HeapFile* hf, uint32_t block_id, uint16_t slot_id)
+{
+    if (!hf || block_id >= hf->n_blocks) return -1;
+    
+    // Fetch the block from buffer pool
+    Block* cur = bp_fetch(&hf->bp, block_id);
+    if (!cur) return -1;
+    
+    int used = block_used_count(cur);
+    if (slot_id >= used) return -1; // Invalid slot
+    
+    // Compact the block by moving records after the deleted slot forward
+    uint8_t temp_buf[512];
+    for (int s = slot_id + 1; s < used; s++) {
+        // Read record from slot s
+        if (block_read_record(cur, hf->schema.record_size, s, temp_buf) == 0) {
+            // Write it to slot s-1
+            block_write_record(cur, hf->schema.record_size, s - 1, temp_buf);
+        }
+    }
+    
+    // Update used count
+    block_set_used_count(cur, used - 1);
+    bp_mark_dirty(&hf->bp, block_id);
+    
+    return 0;
+}
