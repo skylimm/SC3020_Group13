@@ -99,6 +99,9 @@ int scan_db(HeapFile *hf)
         qsort(entries, count, sizeof(KeyPointer), compare_key_pointer);
 
     // open B+tree file (one page per node)
+    // minhwan: Delete old file first to ensure we start fresh
+    remove("btree.db");
+    
     BtreeFileManager fm;
     if (btfm_open(&fm, "btree.db", NODE_SIZE) != 0) {
         fprintf(stderr, "Could not open btree.db\n");

@@ -12,6 +12,7 @@ static void usage()
     printf("  load <csv> <dbfile> [--buf N]\n");
     printf("  stats <dbfile> [--buf N]\n");
     printf("  scan  <dbfile> [--buf N] [--limit K]\n");
+    printf("  test_search <dbfile> [--buf N]    # minhwan: Test B+ tree search\n");
 }
 
 int run_cli(int argc, char **argv)
@@ -90,6 +91,22 @@ int run_cli(int argc, char **argv)
             return 3;
         }
         hf_close(&hf);
+        return 0;
+    }
+    // minhwan: Test command for B+ tree search functionality
+    else if (strcmp(argv[1], "test_search") == 0 && argc >= 3)
+    {
+        printf("=== B+ Tree Search Test ===\n");
+        extern int test_bptree_search();  // minhwan: Declare external function
+        extern void run_comparison_tests(); // minhwan: Declare comparison test function
+        if (test_bptree_search() != 0) {
+            fprintf(stderr, "B+ tree search test failed\n");
+            return 3;
+        }
+        
+        // Run the full comparison between B+ tree and linear scan
+        printf("\n");
+        run_comparison_tests();
         return 0;
     }
     else
