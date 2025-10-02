@@ -77,7 +77,7 @@ static uint32_t get_next_leaf_id(const Node *leaf)
     // Next leaf pointer is stored at the end of the node
     size_t off = (NODE_SIZE - NODE_HDR_SIZE) - 4;
     uint32_t next_id;
-    memcpy(&next_id, &leaf->bytes[off], 4); // minhwan: Use 4 bytes for uint32_t
+    memcpy(&next_id, &leaf->bytes[off], 4);
     
     return next_id;
 }
@@ -162,7 +162,7 @@ int bptree_range_search(const char *btree_filename, float min_key, SearchResult 
         if (current_node->level > 1) {
             // Read first child pointer (always at the beginning)
             uint32_t child_id;
-            memcpy(&child_id, &current_node->bytes[0], 4); // minhwan: Use 4 bytes for uint32_t
+            memcpy(&child_id, &current_node->bytes[0], 4);
             
 
             
@@ -185,14 +185,14 @@ int bptree_range_search(const char *btree_filename, float min_key, SearchResult 
                     } else {
                         // Use previous child pointer
                         size_t prev_ptr_offset = NODE_POINTER_SIZE + (i-1) * (KEY_SIZE + NODE_POINTER_SIZE) + KEY_SIZE;
-                        memcpy(&child_id, &current_node->bytes[prev_ptr_offset], 4); // minhwan: Use 4 bytes for uint32_t
+                        memcpy(&child_id, &current_node->bytes[prev_ptr_offset], 4);
 
                     }
                     break;
                 } else if (i == current_node->key_count - 1) {
                     // This is the last key and it's <= min_key, use its child pointer
                     size_t ptr_offset = NODE_POINTER_SIZE + i * (KEY_SIZE + NODE_POINTER_SIZE) + KEY_SIZE;
-                    memcpy(&child_id, &current_node->bytes[ptr_offset], 4); // minhwan: Use 4 bytes for uint32_t
+                    memcpy(&child_id, &current_node->bytes[ptr_offset], 4);
 
                 }
             }
@@ -483,8 +483,6 @@ void run_comparison_tests()
     printf("\nPerformance Improvement:\n");
     printf("  Time speedup: %.2fx\n", avg_linear_time / avg_bptree_time);
     printf("  I/O reduction: %.2fx\n", (double)avg_linear_blocks / avg_bptree_nodes);
-    
-    // minhwan: Print updated B+ tree statistics once after comparison
     printf("\n=== Updated B+ Tree Statistics ===\n");
     
     // Open the B+ tree file to analyze the structure
@@ -547,26 +545,7 @@ void run_comparison_tests()
     }
 }
 
-// Simple test function to demonstrate usage
-int test_bptree_search()
-{
-    SearchResult result;
-    
-    printf("Testing B+ tree range search for FT_PCT_home > 0.9\n");
-    printf("================================================\n");
-    
-    if (bptree_range_search("btree.db", 0.9f, &result) == 0) {
-        printf("Search completed successfully!\n");
-        cleanup_search_result(&result);
-        return 0;
-    } else {
-        printf("Search failed!\n");
-        cleanup_search_result(&result);
-        return -1;
-    }
-}
-
-// minhwan: Complete range deletion function that actually deletes records and rebuilds B+ tree
+// Complete range deletion function that actually deletes records and rebuilds B+ tree
 int bptree_range_delete(const char *db_filename, const char *btree_filename, float min_key, SearchResult *result)
 {
     printf("\n=== Starting Record Deletion Process ===\n");
@@ -620,7 +599,7 @@ int bptree_range_delete(const char *db_filename, const char *btree_filename, flo
     
     // Step 3: Rebuild the B+ tree with remaining records
     printf("Rebuilding B+ tree index...\n");
-    extern int scan_db(HeapFile *hf);  // minhwan: Declare external function from build_bplus.c
+    extern int scan_db(HeapFile *hf);
     
     if (scan_db(&hf) != 0) {
         fprintf(stderr, "Failed to rebuild B+ tree index\n");

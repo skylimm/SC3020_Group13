@@ -94,11 +94,11 @@ int run_cli(int argc, char **argv)
         hf_close(&hf);
         return 0;
     }
-    // minhwan: Production-ready command for B+ tree range deletion
+
     else if (strcmp(argv[1], "delete_bplus") == 0 && argc >= 4)
     {
         const char *db = argv[2];
-        float min_key = atof(argv[3]);  // minhwan: Parse minimum key value from command line
+        float min_key = atof(argv[3]);
         
         printf("=== B+ Tree Range Deletion ===\n");
         printf("Database: %s\n", db);
@@ -107,7 +107,6 @@ int run_cli(int argc, char **argv)
         
         extern int bptree_range_delete(const char *db_filename, const char *btree_filename, float min_key, void *result);  // minhwan: Declare external function
         
-        // Use a simple structure to capture results without exposing internal details
         struct {
             void *records;
             size_t count;
@@ -130,7 +129,7 @@ int run_cli(int argc, char **argv)
         
         // Run comparison test between B+ tree and linear scan
         printf("\n");
-        extern void run_comparison_tests(); // minhwan: Declare comparison test function
+        extern void run_comparison_tests();
         run_comparison_tests();
         
         return 0;

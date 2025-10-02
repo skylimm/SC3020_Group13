@@ -13,3 +13,4 @@ yall can try to run below command lines in the gitbash terminal
 
 `./project_c build_bplus  data.db` : this is for task 2. sometimes might give an error but just rerun.
 
+`./project_c delete_bplus data.db 0.9` : for task 3. you can adjust the value of min_key and it will delete all records above it.
