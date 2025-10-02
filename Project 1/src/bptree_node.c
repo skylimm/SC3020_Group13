@@ -8,6 +8,7 @@ int node_init(Node *n, uint8_t level, uint32_t node_id )
     n->level = level; 
     n->node_id = node_id;
     n->lower_bound = -1.0f; // a sentinel value to indicate that the lower bound is not set
+    memset(n->bytes, 0, NODE_SIZE - NODE_HDR_SIZE);
     
     return 0;
 }
@@ -38,9 +39,10 @@ int node_write_record_key(Node *n, float key, uint32_t block_id, int slot)
 
 // link the leaf nodes together
 int link_leaf_node(Node *node, uint32_t next_node_id)
-{ 
-    size_t off = NODE_SIZE - NODE_POINTER_SIZE;
-    memcpy(&node->bytes[off], &next_node_id, NODE_POINTER_SIZE);
+{
+    size_t off = (NODE_SIZE - NODE_HDR_SIZE) - 4;  // minhwan: Correct offset within bytes array
+    memcpy(&node->bytes[off], &next_node_id, 4);
+
     return 0;
 }
 

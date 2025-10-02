@@ -12,7 +12,8 @@ static void usage()
     printf("  load <csv> <dbfile> [--buf N]\n");
     printf("  stats <dbfile> [--buf N]\n");
     printf("  scan  <dbfile> [--buf N] [--limit K]\n");
-    printf("  test_search <dbfile> [--buf N]    # minhwan: Test B+ tree search\n");
+    printf("  build_bplus <dbfile> [--buf N]\n");
+    printf("  delete_bplus <dbfile> <min_key> [--buf N]    # Delete records with FT_PCT_home > min_key\n");
 }
 
 int run_cli(int argc, char **argv)
@@ -93,20 +94,45 @@ int run_cli(int argc, char **argv)
         hf_close(&hf);
         return 0;
     }
-    // minhwan: Test command for B+ tree search functionality
-    else if (strcmp(argv[1], "test_search") == 0 && argc >= 3)
+    // minhwan: Production-ready command for B+ tree range deletion
+    else if (strcmp(argv[1], "delete_bplus") == 0 && argc >= 4)
     {
-        printf("=== B+ Tree Search Test ===\n");
-        extern int test_bptree_search();  // minhwan: Declare external function
-        extern void run_comparison_tests(); // minhwan: Declare comparison test function
-        if (test_bptree_search() != 0) {
-            fprintf(stderr, "B+ tree search test failed\n");
+        const char *db = argv[2];
+        float min_key = atof(argv[3]);  // minhwan: Parse minimum key value from command line
+        
+        printf("=== B+ Tree Range Deletion ===\n");
+        printf("Database: %s\n", db);
+        printf("Deleting records with FT_PCT_home > %.6f\n", min_key);
+        printf("========================================\n\n");
+        
+        extern int bptree_range_search(const char *btree_filename, float min_key, void *result);  // minhwan: Declare external function
+        
+        // Use a simple structure to capture results without exposing internal details
+        struct {
+            void *records;
+            size_t count;
+            size_t capacity;
+            uint32_t index_nodes_accessed;
+            uint32_t leaf_nodes_accessed;
+            double total_key_value;
+            double search_time_ms;
+        } search_result = {0};
+        
+        // Perform B+ tree range search to find records to delete
+        if (bptree_range_search("btree.db", min_key, &search_result) != 0) {
+            fprintf(stderr, "B+ tree range search failed\n");
             return 3;
         }
         
-        // Run the full comparison between B+ tree and linear scan
+        // Clean up search results
+        extern void cleanup_search_result(void *result);
+        cleanup_search_result(&search_result);
+        
+        // Run comparison test between B+ tree and linear scan
         printf("\n");
+        extern void run_comparison_tests(); // minhwan: Declare comparison test function
         run_comparison_tests();
+        
         return 0;
     }
     else

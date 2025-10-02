@@ -75,9 +75,10 @@ static void read_leaf_record_pointer(const Node *leaf, int entry_index, uint32_t
 static uint32_t get_next_leaf_id(const Node *leaf)
 {
     // Next leaf pointer is stored at the end of the node
-    size_t offset = NODE_SIZE - 4;
+    size_t off = (NODE_SIZE - NODE_HDR_SIZE) - 4;
     uint32_t next_id;
-    memcpy(&next_id, &leaf->bytes[offset], 4); // minhwan: Use 4 bytes for uint32_t
+    memcpy(&next_id, &leaf->bytes[off], 4); // minhwan: Use 4 bytes for uint32_t
+    
     return next_id;
 }
 
@@ -207,7 +208,7 @@ int bptree_range_search(const char *btree_filename, float min_key, SearchResult 
     
 
     
-    while (leaf_id != 0) {  // 0 indicates no next leaf
+    while (leaf_id != UINT32_MAX) {  // Check for end of leaf chain marker
         // Read the current leaf node
         if (btfm_read_node(&btfm, leaf_id, current_node) != 0) {
             fprintf(stderr, "Failed to read leaf node %u\n", leaf_id);
@@ -289,7 +290,7 @@ int bptree_range_search(const char *btree_filename, float min_key, SearchResult 
     // Print summary statistics
     printf("\nB+ Tree Search Results:\n");
     printf("  Records found: %zu\n", result->count);
-    printf("  Index nodes accessed: %u\n", result->index_nodes_accessed);
+    printf("  Internal nodes accessed: %u\n", result->index_nodes_accessed);
     printf("  Leaf nodes accessed: %u\n", result->leaf_nodes_accessed);
     printf("  Total nodes accessed: %u\n", result->index_nodes_accessed + result->leaf_nodes_accessed);
     
@@ -482,6 +483,62 @@ void run_comparison_tests()
     printf("\nPerformance Improvement:\n");
     printf("  Time speedup: %.2fx\n", avg_linear_time / avg_bptree_time);
     printf("  I/O reduction: %.2fx\n", (double)avg_linear_blocks / avg_bptree_nodes);
+    
+    // minhwan: Print updated B+ tree statistics once after comparison
+    printf("\n=== Updated B+ Tree Statistics ===\n");
+    
+    // Open the B+ tree file to analyze the structure
+    BtreeFileManager btfm;
+    if (btfm_open(&btfm, "btree.db", NODE_SIZE) == 0) {
+        uint32_t total_nodes = 0;
+        uint32_t leaf_nodes = 0;
+        uint32_t internal_nodes = 0;
+        uint8_t max_level = 0;
+        uint32_t root_node_id = 0;
+        
+        // Count nodes and find root
+        for (uint32_t test_id = 0; test_id < 1000; test_id++) {
+            Node test_node;
+            if (btfm_read_node(&btfm, test_id, &test_node) == 0) {
+                total_nodes++;
+                if (test_node.level == 1) {
+                    leaf_nodes++;
+                } else {
+                    internal_nodes++;
+                    if (test_node.level > max_level) {
+                        max_level = test_node.level;
+                        root_node_id = test_id;
+                    }
+                }
+            } else {
+                break; // No more nodes
+            }
+        }
+        
+        printf("Total leaf nodes: %u\n", leaf_nodes);
+        printf("Total nodes (incl. root): %u\n", total_nodes);
+        printf("Number of levels: %u\n", max_level);
+        
+        // Read and display root node content
+        Node root_node;
+        if (btfm_read_node(&btfm, root_node_id, &root_node) == 0) {
+            printf("Root node content (keys only):\n");
+            
+            // Read the lower bound
+            printf("  Lower bound: %.2f\n", root_node.lower_bound);
+            
+            // Read each key from the root node
+            for (int i = 0; i < root_node.key_count; i++) {
+                size_t key_offset = NODE_POINTER_SIZE + i * (KEY_SIZE + NODE_POINTER_SIZE);
+                float key;
+                memcpy(&key, &root_node.bytes[key_offset], KEY_SIZE);
+                printf("  Root node key %d: %.2f\n", i, key);
+            }
+        }
+        
+        btfm_close(&btfm);
+    }
+    printf("================================\n");
     
     // Clean up all results
     for (int i = 0; i < 3; i++) {
