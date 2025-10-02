@@ -22,7 +22,7 @@ int node_write_record_key(Node *n, float key, uint32_t block_id, int slot)
         n->lower_bound = key;
     }
     
-    size_t off = ((size_t)slot + block_id + (size_t)key) * n->key_count;
+    size_t off = n->key_count * (RECORD_POINTER_SIZE + KEY_SIZE); // minhwan: Fix offset calculation for leaf nodes
     uint8_t ptr[RECORD_POINTER_SIZE];
 
     memcpy(ptr, &block_id, 4);
@@ -57,15 +57,14 @@ int node_write_node_key(Node *n, float key, uint32_t node_id)
         return -1;
 
     if ((n->key_count) == 0){
-        memcpy(&n->bytes, &node_id-1, NODE_POINTER_SIZE);
+        memcpy(&n->bytes, &node_id, NODE_POINTER_SIZE); // minhwan: Use node_id, not node_id-1
     }
     
-    size_t off = NODE_POINTER_SIZE + (node_id + (size_t)key) * n->key_count;
+    size_t off = NODE_POINTER_SIZE + n->key_count * (KEY_SIZE + NODE_POINTER_SIZE); // minhwan: Fix offset calculation
 
     memcpy(&n->bytes[off], &key, KEY_SIZE);
     memcpy(&n->bytes[off + KEY_SIZE], &node_id, NODE_POINTER_SIZE);
-    n->key_count += 1;
-    n->key_count += 1;
+    n->key_count += 1; // minhwan: Remove double increment, only increment once
     return 0;
 }
 
