@@ -483,60 +483,6 @@ void run_comparison_tests()
     printf("\nPerformance Improvement:\n");
     printf("  Time speedup: %.2fx\n", avg_linear_time / avg_bptree_time);
     printf("  I/O reduction: %.2fx\n", (double)avg_linear_blocks / avg_bptree_nodes);
-    printf("\n=== Updated B+ Tree Statistics ===\n");
-    
-    // Open the B+ tree file to analyze the structure
-    BtreeFileManager btfm;
-    if (btfm_open(&btfm, "btree.db", NODE_SIZE) == 0) {
-        uint32_t total_nodes = 0;
-        uint32_t leaf_nodes = 0;
-        uint32_t internal_nodes = 0;
-        uint8_t max_level = 0;
-        uint32_t root_node_id = 0;
-        
-        // Count nodes and find root
-        for (uint32_t test_id = 0; test_id < 1000; test_id++) {
-            Node test_node;
-            if (btfm_read_node(&btfm, test_id, &test_node) == 0) {
-                total_nodes++;
-                if (test_node.level == 1) {
-                    leaf_nodes++;
-                } else {
-                    internal_nodes++;
-                    if (test_node.level > max_level) {
-                        max_level = test_node.level;
-                        root_node_id = test_id;
-                    }
-                }
-            } else {
-                break; // No more nodes
-            }
-        }
-        
-        printf("Total leaf nodes: %u\n", leaf_nodes);
-        printf("Total nodes (incl. root): %u\n", total_nodes);
-        printf("Number of levels: %u\n", max_level);
-        
-        // Read and display root node content
-        Node root_node;
-        if (btfm_read_node(&btfm, root_node_id, &root_node) == 0) {
-            printf("Root node content (keys only):\n");
-            
-            // Read the lower bound
-            printf("  Lower bound: %.2f\n", root_node.lower_bound);
-            
-            // Read each key from the root node
-            for (int i = 0; i < root_node.key_count; i++) {
-                size_t key_offset = NODE_POINTER_SIZE + i * (KEY_SIZE + NODE_POINTER_SIZE);
-                float key;
-                memcpy(&key, &root_node.bytes[key_offset], KEY_SIZE);
-                printf("  Root node key %d: %.2f\n", i, key);
-            }
-        }
-        
-        btfm_close(&btfm);
-    }
-    printf("================================\n");
     
     // Clean up all results
     for (int i = 0; i < 3; i++) {
@@ -545,12 +491,12 @@ void run_comparison_tests()
     }
 }
 
-// Complete range deletion function that actually deletes records and rebuilds B+ tree
-int bptree_range_delete(const char *db_filename, const char *btree_filename, float min_key, SearchResult *result)
+// Function to search for records to delete (without actually deleting them)
+int bptree_range_search_for_deletion(const char *btree_filename, float min_key, SearchResult *result)
 {
     printf("\n=== Starting Record Deletion Process ===\n");
     
-    // Step 1: Find all records to delete using B+ tree search
+    // Find all records to delete using B+ tree search
     if (bptree_range_search(btree_filename, min_key, result) != 0) {
         fprintf(stderr, "Failed to find records for deletion\n");
         return -1;
@@ -561,9 +507,22 @@ int bptree_range_delete(const char *db_filename, const char *btree_filename, flo
         return 0;
     }
     
-    printf("Found %zu records to delete. Proceeding with deletion...\n", result->count);
+    printf("Found %zu records to delete.\n", result->count);
     
-    // Step 2: Open the heap file and delete records
+    return 0;
+}
+
+// Function to actually perform the deletion and rebuild B+ tree
+int bptree_perform_deletion(const char *db_filename, SearchResult *result)
+{
+    if (result->count == 0) {
+        printf("No records to delete.\n");
+        return 0;
+    }
+    
+    printf("\nProceeding with deletion of %zu records...\n", result->count);
+    
+    // Open the heap file and delete records
     HeapFile hf;
     if (hf_open(&hf, db_filename, 64) != 0) {
         fprintf(stderr, "Failed to open database file: %s\n", db_filename);
@@ -597,7 +556,7 @@ int bptree_range_delete(const char *db_filename, const char *btree_filename, flo
     
     printf("Successfully deleted %zu records from database.\n", deleted_count);
     
-    // Step 3: Rebuild the B+ tree with remaining records
+    // Rebuild the B+ tree with remaining records
     printf("Rebuilding B+ tree index...\n");
     extern int scan_db(HeapFile *hf);
     

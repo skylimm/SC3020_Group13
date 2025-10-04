@@ -105,7 +105,10 @@ int run_cli(int argc, char **argv)
         printf("Deleting records with FT_PCT_home > %.6f\n", min_key);
         printf("========================================\n\n");
         
-        extern int bptree_range_delete(const char *db_filename, const char *btree_filename, float min_key, void *result);  // minhwan: Declare external function
+        extern int bptree_range_search_for_deletion(const char *btree_filename, float min_key, void *result);
+        extern int bptree_perform_deletion(const char *db_filename, void *result);
+        extern void run_comparison_tests();
+        extern void cleanup_search_result(void *result);
         
         struct {
             void *records;
@@ -117,20 +120,65 @@ int run_cli(int argc, char **argv)
             double search_time_ms;
         } search_result = {0};
         
-        // Perform actual B+ tree range deletion (search + delete + rebuild)
-        if (bptree_range_delete(db, "btree.db", min_key, &search_result) != 0) {
-            fprintf(stderr, "B+ tree range deletion failed\n");
+        // Step 1: Search for records to delete (but don't delete yet)
+        if (bptree_range_search_for_deletion("btree.db", min_key, &search_result) != 0) {
+            fprintf(stderr, "B+ tree search for deletion failed\n");
             return 3;
         }
         
-        // Clean up search results
-        extern void cleanup_search_result(void *result);
-        cleanup_search_result(&search_result);
-        
-        // Run comparison test between B+ tree and linear scan
+        // Step 2: Run performance comparison tests (while records still exist)
         printf("\n");
-        extern void run_comparison_tests();
         run_comparison_tests();
+        
+        // Step 3: Actually delete the records and rebuild B+ tree
+        if (bptree_perform_deletion(db, &search_result) != 0) {
+            fprintf(stderr, "Record deletion failed\n");
+            cleanup_search_result(&search_result);
+            return 3;
+        }
+        
+        // Step 4: Show updated B+ tree statistics
+        printf("\n=== Updated B+ Tree Statistics ===\n");
+        extern int btfm_open(void *btfm, const char *filename, size_t node_size);
+        extern void btfm_close(void *btfm);
+        extern int btfm_read_node(void *btfm, uint32_t node_id, void *node);
+        
+        // Open the B+ tree file to analyze the updated structure
+        struct { char data[256]; } btfm;  // Placeholder for BtreeFileManager
+        if (btfm_open(&btfm, "btree.db", 512) == 0) {
+            uint32_t total_nodes = 0;
+            uint32_t leaf_nodes = 0;
+            uint8_t max_level = 0;
+            uint32_t root_node_id = 0;
+            
+            // Count nodes and find root
+            for (uint32_t test_id = 0; test_id < 1000; test_id++) {
+                struct { uint8_t level; uint16_t key_count; float lower_bound; uint8_t bytes[500]; } test_node;
+                if (btfm_read_node(&btfm, test_id, &test_node) == 0) {
+                    total_nodes++;
+                    if (test_node.level == 1) {
+                        leaf_nodes++;
+                    } else {
+                        if (test_node.level > max_level) {
+                            max_level = test_node.level;
+                            root_node_id = test_id;
+                        }
+                    }
+                } else {
+                    break; // No more nodes
+                }
+            }
+            
+            printf("Total leaf nodes: %u\n", leaf_nodes);
+            printf("Total nodes (incl. root): %u\n", total_nodes);
+            printf("Number of levels: %u\n", max_level);
+            
+            btfm_close(&btfm);
+        }
+        printf("================================\n");
+        
+        // Clean up search results
+        cleanup_search_result(&search_result);
         
         return 0;
     }
