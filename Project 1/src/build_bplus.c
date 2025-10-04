@@ -5,6 +5,8 @@
 #include "bptree.h"
 #include "build_bplus.h"
 #include "file_manager_btree.h"
+#include "bptree_construct.h"
+
 
 typedef struct {
     float    key;
@@ -211,31 +213,33 @@ int scan_db(HeapFile *hf)
     printf("Total nodes (incl. root): %d\n", leaf_count + 1);
     printf("Number of levels: 2\n");
     
-    uint32_t root_id;
-    if (btfm_alloc_node(&fm, &root_id) != 0) {
-        fprintf(stderr, "Failed to allocate root node\n");
-        btfm_close(&fm);
-        free(entries);
-        return -1;
-    }
-    
-    Node *root = malloc(sizeof(Node));
-    node_init(root, 2, root_id);
+    bulkload(array, leaf_count, &fm);
 
-    set_int_node_lb(root, array[0]);
-    for (int i = 0; i < leaf_count; i++) {
-        node_write_node_key(root, array[i], leaf_node_ids[i]);
-        printf("Root node key %d: %.2f\n", i, array[i]);
-    }
-    if (btfm_write_node(&fm, root) != 0) {
-        fprintf(stderr, "Error writing root node to disk\n");
-        free(root);
-        free(curr);
-        btfm_close(&fm);
-        free(entries);
-        return -1;
-    }
-    free(root);
+    // uint32_t root_id;
+    // if (btfm_alloc_node(&fm, &root_id) != 0) {
+    //     fprintf(stderr, "Failed to allocate root node\n");
+    //     btfm_close(&fm);
+    //     free(entries);
+    //     return -1;
+    // }
+    
+    // Node *root = malloc(sizeof(Node));
+    // node_init(root, 2, root_id);
+
+    // set_int_node_lb(root, array[0]);
+    // for (int i = 0; i < leaf_count; i++) {
+    //     node_write_node_key(root, array[i], leaf_node_ids[i]);
+    //     printf("Root node key %d: %.2f\n", i, array[i]);
+    // }
+    // if (btfm_write_node(&fm, root) != 0) {
+    //     fprintf(stderr, "Error writing root node to disk\n");
+    //     free(root);
+    //     free(curr);
+    //     btfm_close(&fm);
+    //     free(entries);
+    //     return -1;
+    // }
+    // free(root);
     
     free(curr);
     btfm_close(&fm);
