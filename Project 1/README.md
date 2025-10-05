@@ -52,6 +52,10 @@ Construct the B+ tree file (`btree.db`) from the heap file created in Task 1
 This command scans every record in `data.db`, sorts the index keys, and writes the resulting B+ tree structure to `btree.db`. You should run it after the heap file has been populated to ensure Task 2 artifacts are up to date.
 
 ### Command Lines for Task 3
+
+1. Delete Records above min_key
+
  ``` ./project_c delete_bplus data.db 0.9 ``` 
  
- This command adjusts the value of min_key and it will delete all records above it.
+ This command adjusts the value of min_key and it will delete all records above it, and it will also run comparison tests against a brute-force linear scan search.
+ The min_key can be adjusted to any key value for other range deletion commands.
