@@ -277,7 +277,7 @@ int pack_internals(ChildListEntry *child_list, int node_count, int level, int to
 {
     if (node_count < MAX_INT_CHILDREN)
     {
-        printf("Filling all into one node\n");
+        printf("\nFilling all child nodes into one parent node\n");
         // fill it all into one node
         // create node
         Node *n = malloc(sizeof(Node));
@@ -287,8 +287,7 @@ int pack_internals(ChildListEntry *child_list, int node_count, int level, int to
         for (int i = 1; i < node_count; i++)
         {
             node_write_node_key(n, child_list[i].key, child_list[i].node_id);
-            // also print content of root node nicely. prev pointer and all keys with their node ids
-            printf("Root node key %d: %.2f\n", i, child_list[i].key);
+            printf("Node key index %d: value  : %.2f\n", i, child_list[i].key);
         }
         if (btfm_write_node(fm, n) != 0)
         {
@@ -297,6 +296,7 @@ int pack_internals(ChildListEntry *child_list, int node_count, int level, int to
             btfm_close(fm);
             return -1;
         }
+        printf("\n");
         free(n);
         *parent_count += 1;
     }

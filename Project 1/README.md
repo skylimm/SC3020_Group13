@@ -44,6 +44,11 @@ This confirms that the storage component successfully loads, stores, and retriev
 
 ### Command Lines for Task 2
 
-`./project_c build_bplus  data.db` : this is for task 2. sometimes might give an error but just rerun.
+1. Build the B+ Tree Index
+Construct the B+ tree file (`btree.db`) from the heap file created in Task 1
+
+``` ./project_c build_bplus data.db ```
+
+This command scans every record in `data.db`, sorts the index keys, and writes the resulting B+ tree structure to `btree.db`. You should run it after the heap file has been populated to ensure Task 2 artifacts are up to date.
 
 `./project_c delete_bplus data.db 0.9` : for task 3. you can adjust the value of min_key and it will delete all records above it.
