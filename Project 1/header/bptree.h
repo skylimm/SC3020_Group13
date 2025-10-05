@@ -33,8 +33,10 @@ Header for nodes -> 11B
 
 #define MAX_INTERNAL_KEYS (((NODE_SIZE - NODE_HDR_SIZE) / (KEY_SIZE + NODE_POINTER_SIZE)) - 1)
 #define MAX_LEAF_KEYS     (((NODE_SIZE - NODE_HDR_SIZE) / (KEY_SIZE + RECORD_POINTER_SIZE)) - 1)
-#define MIN_INTERNAL_KEYS ((MAX_INTERNAL_KEYS + 1) / 2)
+#define MIN_INTERNAL_KEYS ((MAX_INTERNAL_KEYS) / 2)
 #define MIN_LEAF_KEYS     ((MAX_LEAF_KEYS + 1) / 2)
+#define MAX_INT_CHILDREN (MAX_INTERNAL_KEYS + 1)
+
 
 typedef struct  {
     uint16_t key_count;

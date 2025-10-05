@@ -2,6 +2,7 @@
 #include "heapfile.h"
 #include "schema.h"
 #include "build_bplus.h"
+#include "file_manager_btree.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -139,13 +140,10 @@ int run_cli(int argc, char **argv)
         
         // Step 4: Show updated B+ tree statistics
         printf("\n=== Updated B+ Tree Statistics ===\n");
-        extern int btfm_open(void *btfm, const char *filename, size_t node_size);
-        extern void btfm_close(void *btfm);
-        extern int btfm_read_node(void *btfm, uint32_t node_id, void *node);
-        
+
         // Open the B+ tree file to analyze the updated structure
-        struct { char data[256]; } btfm;  // Placeholder for BtreeFileManager
-        if (btfm_open(&btfm, "btree.db", 512) == 0) {
+        BtreeFileManager btfm;
+        if (btfm_open(&btfm, "btree.db", 4096) == 0) {
             uint32_t total_nodes = 0;
             uint32_t leaf_nodes = 0;
             uint8_t max_level = 0;
@@ -153,7 +151,7 @@ int run_cli(int argc, char **argv)
             
             // Count nodes and find root
             for (uint32_t test_id = 0; test_id < 1000; test_id++) {
-                struct { uint8_t level; uint16_t key_count; float lower_bound; uint8_t bytes[500]; } test_node;
+                Node test_node;
                 if (btfm_read_node(&btfm, test_id, &test_node) == 0) {
                     total_nodes++;
                     if (test_node.level == 1) {
