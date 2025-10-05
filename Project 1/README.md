@@ -53,4 +53,5 @@ This command scans every record in `data.db`, sorts the index keys, and writes t
 
 ### Command Lines for Task 3
  ``` ./project_c delete_bplus data.db 0.9 ``` 
+ 
  This command adjusts the value of min_key and it will delete all records above it.
