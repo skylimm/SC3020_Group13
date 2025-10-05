@@ -20,6 +20,7 @@ int bulkload(float *lower_bound_array, int child_count, BtreeFileManager *fm)
 
 
         while (1) {
+            level += 1;
             int parent_count = 0;
             ChildListEntry parent_list[100];
 
@@ -30,7 +31,6 @@ int bulkload(float *lower_bound_array, int child_count, BtreeFileManager *fm)
                 // prepare for next iteration
                 total_nodes += parent_count;
                 child_count = parent_count;
-                level += 1;
                 memcpy(child_list, parent_list, parent_count*sizeof(ChildListEntry));
             }
         }
@@ -60,7 +60,7 @@ int pack_internals(ChildListEntry *child_list, int node_count, int level, int to
         Node *n = malloc(sizeof(Node));
         node_init(n, level, total_nodes); // temp id=0
         // fill_node();
-        for (int i = 1; i < node_count - 1; i++)
+        for (int i = 1; i < node_count; i++)
         {
             node_write_node_key(n, child_list[i].key, child_list[i].node_id);
             // also print content of root node nicely. prev pointer and all keys with their node ids
