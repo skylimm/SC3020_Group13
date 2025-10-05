@@ -4,8 +4,6 @@
 #include <string.h>
 #include "bptree.h"
 #include "build_bplus.h"
-#include "file_manager_btree.h"
-#include "bptree_construct.h"
 
 
 typedef struct {
@@ -96,7 +94,7 @@ int scan_db(HeapFile *hf)
         }
     }
 
-
+    // sort the entries by key, 
     if (count > 1)
         qsort(entries, count, sizeof(KeyPointer), compare_key_pointer);
 
@@ -208,41 +206,244 @@ int scan_db(HeapFile *hf)
         return -1;
     }
 
+    // build the upper levels using bulkloading method
+    int total_nodes = 0;
+    if (bulkload(array, leaf_count, &fm, &total_nodes)== -1) {
+        fprintf(stderr, "bulkload failed\n");
+        free(curr);
+        btfm_close(&fm);
+        free(entries);
+        return -1;
+    }
+
     printf("Parameters n : %d\n", MAX_LEAF_KEYS + 1);
     printf("Total leaf nodes: %d\n", leaf_count);
-    printf("Total nodes (incl. root): %d\n", leaf_count + 1);
+    printf("Total nodes (incl. root): %d\n", total_nodes);
     printf("Number of levels: 2\n");
     
-    bulkload(array, leaf_count, &fm);
-
-    // uint32_t root_id;
-    // if (btfm_alloc_node(&fm, &root_id) != 0) {
-    //     fprintf(stderr, "Failed to allocate root node\n");
-    //     btfm_close(&fm);
-    //     free(entries);
-    //     return -1;
-    // }
-    
-    // Node *root = malloc(sizeof(Node));
-    // node_init(root, 2, root_id);
-
-    // set_int_node_lb(root, array[0]);
-    // for (int i = 0; i < leaf_count; i++) {
-    //     node_write_node_key(root, array[i], leaf_node_ids[i]);
-    //     printf("Root node key %d: %.2f\n", i, array[i]);
-    // }
-    // if (btfm_write_node(&fm, root) != 0) {
-    //     fprintf(stderr, "Error writing root node to disk\n");
-    //     free(root);
-    //     free(curr);
-    //     btfm_close(&fm);
-    //     free(entries);
-    //     return -1;
-    // }
-    // free(root);
     
     free(curr);
     btfm_close(&fm);
     free(entries);
+    return 0;
+}
+
+int bulkload(float *lower_bound_array, int child_count, BtreeFileManager *fm, int *total_nodes)
+{
+
+    if (child_count == 1)
+        return 0; // single leaf node as root
+    else
+    {
+        ChildListEntry child_list[100];
+        for (int i = 0; i < child_count; i++)
+        {
+            child_list[i].key = lower_bound_array[i];
+            child_list[i].node_id = i;
+        }
+        int level = 1;
+        *total_nodes = child_count;
+
+        while (1)
+        {
+            level += 1;
+            int parent_count = 0;
+            ChildListEntry parent_list[100];
+
+            if (pack_internals(child_list, child_count, level, *total_nodes, &parent_count, parent_list, fm) == -1)
+            {
+                printf("Error in packing internal nodes\n");
+                return -1;
+            }
+            if (parent_count == 1)
+            {
+                *total_nodes += parent_count;
+                return 0;
+            }
+            else
+            {
+                // prepare for next iteration
+                *total_nodes += parent_count;
+                child_count = parent_count;
+                memcpy(child_list, parent_list, parent_count * sizeof(ChildListEntry));
+            }
+        }
+    }
+
+    return 0;
+}
+
+int pack_internals(ChildListEntry *child_list, int node_count, int level, int total_nodes, int *parent_count, ChildListEntry *parent_list, BtreeFileManager *fm)
+{
+    if (node_count < MAX_INT_CHILDREN)
+    {
+        printf("Filling all into one node\n");
+        // fill it all into one node
+        // create node
+        Node *n = malloc(sizeof(Node));
+        node_init(n, level, total_nodes); 
+
+        // fill node
+        for (int i = 1; i < node_count; i++)
+        {
+            node_write_node_key(n, child_list[i].key, child_list[i].node_id);
+            // also print content of root node nicely. prev pointer and all keys with their node ids
+            printf("Root node key %d: %.2f\n", i, child_list[i].key);
+        }
+        if (btfm_write_node(fm, n) != 0)
+        {
+            fprintf(stderr, "Error writing root node to disk\n");
+            free(n);
+            btfm_close(fm);
+            return -1;
+        }
+        free(n);
+        *parent_count += 1;
+    }
+    else
+    {
+        // Divide the child nodes into groups of MAX_INT_CHILDREN, each group gets one parent node
+        if (node_count % MAX_INT_CHILDREN == 0)
+        {
+            printf("Splitting at every %d nodes\n", node_count / MAX_INT_CHILDREN);
+
+            int num_nodes = node_count / MAX_INT_CHILDREN;
+
+            for (int i = 0; i < num_nodes; i++)
+            {
+
+                // create_node
+                Node *n = malloc(sizeof(Node));
+                node_init(n, level, total_nodes + *parent_count); // temp id=0
+                // put the first value into parentlist
+                parent_list[*parent_count].key = child_list[i * MAX_INT_CHILDREN].key;
+                parent_list[*parent_count].node_id = child_list[i * MAX_INT_CHILDREN].node_id;
+
+                *parent_count += 1;
+
+                // fill node
+                for (int j = i * MAX_INT_CHILDREN + 1; j < (i + 1) * MAX_INT_CHILDREN; j++)
+                {
+                    node_write_node_key(n, child_list[j].key, child_list[j].node_id);
+                    // also print content of root node nicely. prev pointer and all keys with their node ids
+                    printf("Root node key %d: %.2f\n", j, child_list[j].key);
+                }
+
+                // write the node to disk
+                if (btfm_write_node(fm, n) != 0)
+                {
+                    fprintf(stderr, "Error writing root node to disk\n");
+                    free(n);
+                    btfm_close(fm);
+                    return -1;
+                }
+                free(n);
+            }
+        }
+
+        else if ((node_count % MAX_INT_CHILDREN) - 1 < MIN_INTERNAL_KEYS && node_count % MAX_INT_CHILDREN > 0)
+        {
+            printf("Splitting with borrowing for the last two nodes\n");
+            // split is every num_nodes multiple except for the last two nodes
+            // settle the split for the last two nodes, borrow from the second last node
+            int num_nodes = node_count / MAX_INT_CHILDREN + 1;
+            int num_borrow = MIN_INTERNAL_KEYS - (node_count % MAX_INT_CHILDREN) + 1;
+            int borrow_from = ((num_nodes - 1) * MAX_INT_CHILDREN) - num_borrow;
+
+            printf("num_nodes: %d, num_borrow: %d, borrow_from: %d\n", num_nodes, num_borrow, borrow_from);
+
+            for (int i = 0; i < num_nodes - 2; i++)
+            {
+                printf("Creating node %d\n", i);
+                // create_node
+                Node *n = malloc(sizeof(Node));
+                node_init(n, level, total_nodes + *parent_count); // temp id=0
+                // put the first value into parentlist
+                parent_list[*parent_count].key = child_list[i * MAX_INT_CHILDREN].key;
+                parent_list[*parent_count].node_id = child_list[i * MAX_INT_CHILDREN].node_id;
+
+                *parent_count += 1;
+
+                // fill node
+                for (int j = i * MAX_INT_CHILDREN + 1; j < (i + 1) * MAX_INT_CHILDREN; j++)
+                {
+                    node_write_node_key(n, child_list[j].key, child_list[j].node_id);
+                    // also print content of root node nicely. prev pointer and all keys with their node ids
+                    printf("Root node key %d: %.2f\n", j, child_list[j].key);
+                }
+                printf("\n");
+
+                // write the node to disk
+                if (btfm_write_node(fm, n) != 0)
+                {
+                    fprintf(stderr, "Error writing root node to disk\n");
+                    free(n);
+                    btfm_close(fm);
+                    return -1;
+                }
+                free(n);
+            }
+
+            // handle the last two nodes
+
+            // create node
+            Node *n = malloc(sizeof(Node));
+            node_init(n, level, total_nodes + *parent_count);
+
+            // put the first value into parentlist
+            parent_list[*parent_count].key = child_list[(num_nodes - 2) * MAX_INT_CHILDREN].key;
+            parent_list[*parent_count].node_id = child_list[(num_nodes - 2) * MAX_INT_CHILDREN].node_id;
+
+            *parent_count += 1;
+
+            printf("Creating node %d\n", num_nodes - 2);
+
+            for (int j = (num_nodes - 2) * MAX_INT_CHILDREN + 1; j < borrow_from; j++)
+            {
+                node_write_node_key(n, child_list[j].key, child_list[j].node_id);
+                // also print content of root node nicely. prev pointer and all keys with their node ids
+                printf("Root node key %d: %.2f\n", j, child_list[j].key);
+            }
+
+            // write the node to disk
+            if (btfm_write_node(fm, n) != 0)
+            {
+                fprintf(stderr, "Error writing root node to disk\n");
+                free(n);
+                btfm_close(fm);
+                return -1;
+            }
+            free(n);
+
+            // create node
+            n = malloc(sizeof(Node));
+            node_init(n, level, total_nodes + *parent_count);
+
+            // put the first value into parentlist
+            parent_list[*parent_count].key = child_list[borrow_from].key;
+            parent_list[*parent_count].node_id = child_list[borrow_from].node_id;
+
+            *parent_count += 1;
+
+            printf("Creating node %d\n", num_nodes - 1);
+            // fill node
+            for (int j = borrow_from + 1; j < node_count; j++)
+            {
+                node_write_node_key(n, child_list[j].key, child_list[j].node_id);
+                // also print content of root node nicely. prev pointer and all keys with their node ids
+                printf("Root node key %d: %.2f\n", j, child_list[j].key);
+            }
+
+            // write the node to disk
+            if (btfm_write_node(fm, n) != 0)
+            {
+                fprintf(stderr, "Error writing root node to disk\n");
+                free(n);
+                btfm_close(fm);
+                return -1;
+            }
+            free(n);
+        }
+    }
     return 0;
 }
